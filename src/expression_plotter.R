@@ -2,7 +2,7 @@ library(tidyverse)
 library(DESeq2)
 library(stringr)
 
-gene <- 'Maged2'
+gene <- 'Eif4a'
 
 
 heart_data <- readRDS('data/wgcna/heart_wgcna_objs.rds')$vst
@@ -25,4 +25,7 @@ ggplot(dat)+
   facet_wrap(~tissue)+
   theme_bw()+
   labs(x='Body Temperature', y=paste0(gene,' Expression (VST)'))+
+  theme(axis.title.y = element_text(size=14, face="bold", colour = "black"))+
   guides(fill='none')
+
+ggsave(paste0('figs/gene_expr/', gene, '_expression_4tiss.png' ))

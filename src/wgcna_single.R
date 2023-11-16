@@ -12,7 +12,7 @@ options(stringsAsFactors = FALSE)
 #####
 #read in metadata, tximport quants
 #####
-tissue <- 'brain'
+tissue <- 'kidney'
 meta <- read_csv('data/temp_metadata.csv') %>% mutate(sample=paste0('CL',sample,str_to_title(tissue),'RNA'))
 
 #tximport quants
@@ -26,14 +26,14 @@ snames <- tibble(fnames=files) %>% separate(fnames, into=c('a','b','c','sample',
 #heart
 #snames[which(!(snames %in% meta$sample))] <- c("CL278HeartRNA", "CL764CHeartRNA",  "CL76SAHeartRNA" )
 #brain
-snames[which(!(snames %in% meta$sample))] <- c("CL4BrainRNA", "CL278BrainRNA", "CL764CBrainRNA", "CL76SABrainRNA"  )
+#snames[which(!(snames %in% meta$sample))] <- c("CL4BrainRNA", "CL278BrainRNA", "CL764CBrainRNA", "CL76SABrainRNA"  )
 #kidney
-#snames[which(!(snames %in% meta$sample))] <- c("CL13KidneyRNA", "CL14KidneyRNA", "CL15KidneyRNA", "CL17KidneyRNA", 
-#   "CL19KidneyRNA", "CL20KidneyRNA", "CL21KidneyRNA", "CL22KidneyRNA",
-#  "CL23KidneyRNA", "CL278KidneyRNA", "CL27KidneyRNA", "CL29KidneyRNA", 
-#  "CL32KidneyRNA", "CL40KidneyRNA", "CL43KidneyRNA", "CL45KidneyRNA",
-#  "CL46KidneyRNA", "CL47KidneyRNA", "CL50KidneyRNA", "CL59KidneyRNA", 
-#  "CL72KidneyRNA", "CL73KidneyRNA", "CL75KidneyRNA", "CL76SAKidneyRNA")
+snames[which(!(snames %in% meta$sample))] <- c("CL13KidneyRNA", "CL14KidneyRNA", "CL15KidneyRNA", "CL17KidneyRNA", 
+   "CL19KidneyRNA", "CL20KidneyRNA", "CL21KidneyRNA", "CL22KidneyRNA",
+  "CL23KidneyRNA", "CL278KidneyRNA", "CL27KidneyRNA", "CL29KidneyRNA", 
+  "CL32KidneyRNA", "CL40KidneyRNA", "CL43KidneyRNA", "CL45KidneyRNA",
+  "CL46KidneyRNA", "CL47KidneyRNA", "CL50KidneyRNA", "CL59KidneyRNA", 
+  "CL72KidneyRNA", "CL73KidneyRNA", "CL75KidneyRNA", "CL76SAKidneyRNA")
 
 names(files) <- snames
 translate<- read_tsv('data/gid_translation.tsv') %>% drop_na()
@@ -92,8 +92,7 @@ for (i in contrasts){
 sig_genes <- unique(sig_genes)
 
 
-#subset on these genes to get count matrix mat
-mat <- t(assay(rld[sig_genes,]))
+### OR
 
 
 #situation b)
@@ -111,6 +110,9 @@ filtered_genes <- t_genes[(t_genes %in% c_filtered_genes)&(t_genes %in% v_filter
 mat <- mat[,filtered_genes]
 '
 
+#subset on these genes to get count matrix mat
+mat <- t(assay(rld[sig_genes,]))
+
 #####
 # Run WGCNA
 #####
@@ -118,7 +120,7 @@ mat <- mat[,filtered_genes]
 #good to check no NA, but unlikely at this step
 #goodSamplesGenes(mat, verbose=3)
 
-#check no outlier sampoles
+#check no outlier samples
 sampleTree <- hclust(dist(mat), method = "average")
 
 #save the sample clusters
@@ -150,14 +152,18 @@ datTraits$temp <- nums
 
 
 #set soft-thresholding power for network generation
-powers <- c(c(1:10), seq(from = 12, to=20, by=2))
-sft <- pickSoftThreshold(mat, powerVector = powers, verbose = 5)
+powers <- c(c(1:10), seq(from = 12, to=70, by=2))
+sft <- pickSoftThreshold(mat, powerVector = powers, verbose = 5, networkType='unsigned')
 
 #sft for each tissue:
-#heart = 10
-#liver = 10 (had to use 0.8 r^2)
-#brain = 12 (had to use 0.8 r^2)
+#heart = 9  (10 @ 0.9; 9 @ 0.8 r^2)  
+#liver = 10  ( ; 10 0.8 r^2)
+#brain = 12  (20 @ 0.9 r^2 ; 12 @ 0.8 r^2)
 #kidney = 14 (had to use 0.8 r^2)
+
+#sft for each tissue fullsend:
+#kidney = 54 (54 @ 0.9)
+
 #save thresholding results 
 png(filename = paste0('figs/',tissue,'_sft_soft_threshold.png'), width=700, height=700, units = 'px')
 
@@ -169,7 +175,7 @@ plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
 text(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
      labels=powers,cex=cex1,col="blue");
 # this line corresponds to using an R^2 cut-off of .8
-abline(h=0.80,col="red")
+abline(h=0.90,col="red")
 dev.off()
 
 
@@ -177,16 +183,16 @@ dev.off()
 # Generate networks
 #####
 
-softPower <- 12
+softPower <-14
 adj <- adjacency(mat, power=softPower)
-TOM <- TOMsimilarity(adj)
+TOM <- TOMsimilarity(adj, TOMType = 'unsigned')
 dissTOM <- 1-TOM
 
 #module detection using dynamic tree cutting
 geneTree <- hclust(as.dist(dissTOM), method = "average")
 minModuleSize <- 30 
 dynamicMods <- cutreeDynamic(dendro = geneTree, distM = dissTOM,
-                            deepSplit = 2, pamRespectsDendro = FALSE,
+                            deepSplit = 2, pamStage=T, pamRespectsDendro = FALSE,
                             minClusterSize = minModuleSize)
 
 #this function outputs a ton of modules, we have to merge coexpressed modules
@@ -206,7 +212,7 @@ mergedMEs <- merged$newMEs
 
 
 #plot merge
-sizeGrWindow(12, 9)
+#sizeGrWindow(12, 9)
 pdf(file = paste0('figs/',tissue,'_clusters.pdf'), wi=9, he=12)
 
 plotDendroAndColors(geneTree, cbind(dynamicColors, mergedColors),
@@ -225,8 +231,8 @@ MEs <- mergedMEs
 # Recalculate MEs with color labels
 MEs0 <- moduleEigengenes(mat, moduleColors)$eigengenes
 MEs <- orderMEs(MEs0)
-moduleTraitCor <- cor(MEs, datTraits, use = "p")
-moduleTraitPvalue = corPvalueStudent(moduleTraitCor, nSamples)
+moduleTraitCor <- cor(MEs, datTraits, use = "p", method = 'spearman')
+moduleTraitPvalue <- corPvalueStudent(moduleTraitCor, nSamples)
 
 #look at correlations within the module eigengenes to temp
 
@@ -276,7 +282,7 @@ saveRDS(list(TOM=TOM, mat=mat, MEs=MEs, datTraits=datTraits, dds=dds, meta=meta,
 
 
 #explore ...
-module <- 'honeydew1'
+module <- 'purple'
 column = match(module, modNames)
 moduleGenes = moduleColors==module
 sizeGrWindow(7, 7)
@@ -290,6 +296,23 @@ verboseScatterplot(abs(geneModuleMembership[moduleGenes, column]),
 
 #expression of module genes wrt temp
 modgenes <- colnames(mat[,moduleColors==module])
+deg <- results(dds, contrast=c('temp','SummerActive','20C')) %>% as.data.frame() %>% filter(padj<0.1, abs(log2FoldChange) > 2) %>% rownames()
+exprdat <- as.data.frame(mat[,modgenes]) %>% tibble::rownames_to_column('sample') %>% 
+  pivot_longer(!sample, names_to = 'gene', values_to = 'expr', ) %>% 
+  left_join(., meta, by='sample') %>% 
+  mutate(temp=case_when(temp=='SummerActive'~37,
+                        temp=='30C'~30, 
+                        temp=='25C'~25, 
+                        temp=='20C'~20,
+                        temp=='12C'~12,
+                        temp=='4C'~4)) %>% 
+  filter(gene %in% deg)
+
+ggplot(exprdat %>% group_by(gene))+
+  stat_summary(mapping=aes(x=temp, y=expr, group=gene), color=module, geom='line', fun=mean)+
+  stat_summary(mapping=aes(x=temp, y=expr, group=gene), color=module, geom='point', fun=mean)
+
+
 heat <- t(scale(mat[,modgenes]))
 #fill color gradient
 myCol <- colorRampPalette(c('#ea6bdd', 'black','#50eea7'))(100)
@@ -319,9 +342,9 @@ mcolors<- list(temp=c('SummerActive'="#A50F15",
                       '30C'="#DE2D26"))
 
 #create annotation on heatmap
-colAnn <- HeatmapAnnotation(df= meta %>% 
+colAnn <- HeatmapAnnotation(df= meta %>%  
                               filter(sample %in% rownames(mat)) %>% 
-                              select(-c(sample, color)),
+                              select(temp) %>% as.data.frame(),
                             which='col',
                             na_col='white',
                             col=mcolors) 
@@ -422,12 +445,12 @@ hmap <- Heatmap(heat,
                 # column (sample) parameters
                 cluster_columns = FALSE,
                 column_order = sorder[sorder %in% colnames(heat)],
-                show_column_dend = TRUE,
+                show_column_dend = F,
                 column_title = '',
                 column_title_side = 'bottom',
                 column_title_gp = gpar(fontsize = 12, fontface = 'bold'),
                 column_title_rot = 0,
-                show_column_names = FALSE,
+                show_column_names = T,
                 column_names_gp = gpar(fontsize = 10, fontface = 'bold'),
                 column_names_max_height = unit(10, 'cm'),
                 column_dend_height = unit(25,'mm'),

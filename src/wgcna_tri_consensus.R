@@ -128,22 +128,24 @@ multiExpr[[3]] <- list(data=liver_data$mat[,tgenes])
 
 unmergedMEs = multiSetMEs(multiExpr, colors = NULL, universalColors = unmergedColors)
 # Calculate consensus dissimilarity of consensus module eigengenes
-consMEDiss = consensusMEDissimilarity(unmergedMEs);
+consMEDiss = consensusMEDissimilarity(unmergedMEs)
 # Cluster consensus modules
-consMETree = hclust(as.dist(consMEDiss), method = "average");
+consMETree = hclust(as.dist(consMEDiss), method = "average")
 # Plot the result
-sizeGrWindow(7,6)
+pdf('figs/wgcna_tri_consensus_module_relationships.pdf', width = 9, height = 9)
+#sizeGrWindow(7,6)
 par(mfrow = c(1,1))
 plot(consMETree, main = "Consensus clustering of consensus module eigengenes",xlab = "", sub = "")
-abline(h=0.5, col = "red")
-merge = mergeCloseModules(multiExpr, unmergedLabels, cutHeight = 0.5, verbose = 3)
+abline(h=0.1, col = "red")
+dev.off()
+merge = mergeCloseModules(multiExpr, unmergedLabels, cutHeight = 0.1, verbose = 3)
 # Numeric module labels
 moduleLabels = merge$colors;
 # Convert labels to colors
 moduleColors = labels2colors(moduleLabels)
 # Eigengenes of the new merged modules:
 consMEs = merge$newMEs
-pdf(file='figs/wgcna_tri_consensus_module_dendrogram.pds', width=9, height=6)
+pdf(file='figs/wgcna_tri_consensus_module_dendrogram.pdf', width=9, height=6)
 sizeGrWindow(9,6)
 plotDendroAndColors(consTree, cbind(unmergedColors, moduleColors),
                     c("Unmerged", "Merged"),
@@ -151,9 +153,9 @@ plotDendroAndColors(consTree, cbind(unmergedColors, moduleColors),
                     addGuide = TRUE, guideHang = 0.05)
 dev.off()
 
-saveRDS(list(consMEs=consMEs, moduleColors=moduleColors, 
+saveRDS(list(consMEs=consMEs, moduleColors=moduleColors, setLabels=setLabels,  
              moduleLabels=moduleLabels, consTree=consTree,
-             consensusTOM=consensusTOM), file = 'data/wgcna/tri_consensus_wgcna_objs.R')
+             consensusTOM=consensusTOM, multiExpr=multiExpr), file = 'data/wgcna/tri_consensus_wgcna_objs.rds')
 cyt <- exportNetworkToCytoscape(consensusTOM,
                                 edgeFile = 'data/wgcna/tri_consensus.edges',
                                 nodeFile = 'data/wgcna/tri_consensus.nodes',
